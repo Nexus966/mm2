@@ -6,6 +6,8 @@ local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 local UserInputService = game:GetService("UserInputService")
 
+loadstring(game:HttpGet("https://raw.githubusercontent.com/evxncodes/mainroblox/main/anti-afk", true))()
+
 local lp = Players.LocalPlayer
 local char = lp.Character or lp.CharacterAdded:Wait()
 local hrp = char:WaitForChild("HumanoidRootPart")
@@ -14,9 +16,9 @@ local hum = char:WaitForChild("Humanoid")
 local safePosition = Vector3.new(500, -10, 500)
 local safeCFrame = CFrame.new(safePosition) * CFrame.Angles(math.rad(90), 0, 0)
 
-local moveSmoothness = 8000
-local verticalSpeed = 10
-local horizontalSpeed = 5
+local moveSmoothness = 8000 
+local verticalSpeed = 10 
+local horizontalSpeed = 5 
 local reachThreshold = 2
 
 local coinsCollected = 0
@@ -25,15 +27,15 @@ local serverHopCooldown = 60
 
 local bodyPos, bodyGyro
 
-loadstring(game:HttpGet("https://raw.githubusercontent.com/evxncodes/mainroblox/main/anti-afk", true))()
-
 local function createUI()
 	if lp.PlayerGui:FindFirstChild("CoinFarmUI") then
 		lp.PlayerGui.CoinFarmUI:Destroy()
 	end
+
 	local screenGui = Instance.new("ScreenGui")
 	screenGui.Name = "CoinFarmUI"
 	screenGui.Parent = lp.PlayerGui
+
 	local frame = Instance.new("Frame")
 	frame.Size = UDim2.new(0, 200, 0, 80)
 	frame.Position = UDim2.new(0.01, 0, 0.01, 0)
@@ -41,9 +43,11 @@ local function createUI()
 	frame.BorderSizePixel = 0
 	frame.BackgroundTransparency = 0.3
 	frame.Parent = screenGui
+
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(0, 8)
 	corner.Parent = frame
+
 	local title = Instance.new("TextLabel")
 	title.Text = "COIN FARMER"
 	title.Size = UDim2.new(1, 0, 0, 20)
@@ -53,6 +57,7 @@ local function createUI()
 	title.Font = Enum.Font.GothamBold
 	title.TextSize = 14
 	title.Parent = frame
+
 	local coinCounter = Instance.new("TextLabel")
 	coinCounter.Name = "Thanks"
 	coinCounter.Text = "Thanks For Using Roqate Scripts"
@@ -63,6 +68,7 @@ local function createUI()
 	coinCounter.Font = Enum.Font.GothamMedium
 	coinCounter.TextSize = 14
 	coinCounter.Parent = frame
+
 	local speedInfo = Instance.new("TextLabel")
 	speedInfo.Name = "SpeedInfo"
 	speedInfo.Text = string.format("Speed: H %.1f | V %.1f", horizontalSpeed, verticalSpeed)
@@ -123,19 +129,23 @@ end
 local function setupCharacter()
 	if bodyPos then bodyPos:Destroy() end
 	if bodyGyro then bodyGyro:Destroy() end
+
 	bodyPos = Instance.new("BodyPosition")
 	bodyPos.MaxForce = Vector3.new(moveSmoothness, moveSmoothness, moveSmoothness)
 	bodyPos.P = 10000
-	bodyPos.D = 2000
+	bodyPos.D = 2000 
 	bodyPos.Parent = hrp
+
 	bodyGyro = Instance.new("BodyGyro")
 	bodyGyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
 	bodyGyro.P = 8000
 	bodyGyro.D = 500
 	bodyGyro.Parent = hrp
 	bodyGyro.CFrame = safeCFrame
+
 	hum.PlatformStand = true
 	setupNoclip()
+
 	hrp.CFrame = safeCFrame
 	bodyPos.Position = safePosition
 end
@@ -170,30 +180,41 @@ local function getClosestCoin()
 	return closest
 end
 
-local function teleportAndGlide(targetPos)
+local function moveAndWait(targetPos)
 	if isInventoryFull() then
 		resetCharacter()
 		return true
 	end
-	hrp.CFrame = CFrame.new(targetPos.X, targetPos.Y - 10, targetPos.Z)
-	local glideTarget = Vector3.new(targetPos.X, targetPos.Y, targetPos.Z)
-	bodyPos.Position = glideTarget
-	local startTime = tick()
-	while (hrp.Position - glideTarget).Magnitude > reachThreshold and (tick() - startTime) < 3 do
-		if isInventoryFull() then
-			resetCharacter()
-			return true
-		end
-		task.wait(0.05)
-	end
+
+	hrp.CFrame = CFrame.new(targetPos)
+	task.wait(0.1)
+	
+	local currentPos = hrp.Position
+	local moveVector = (Vector3.new(targetPos.X, targetPos.Y - 10, targetPos.Z) - currentPos)
+	local verticalMove = Vector3.new(0, moveVector.Y, 0)
+	local horizontalMove = Vector3.new(moveVector.X, 0, moveVector.Z)
+	local adjustedMove = (horizontalMove * horizontalSpeed) + (verticalMove * verticalSpeed)
+	local adjustedTarget = currentPos + adjustedMove
+
+	bodyPos.Position = adjustedTarget
+	task.wait(0.5)
 	return false
 end
 
 local function collectCoin(coin)
-	if teleportAndGlide(coin.Position) then return true end
+	local belowCoin = Vector3.new(coin.Position.X, coin.Position.Y - 10, coin.Position.Z)
+	hrp.CFrame = CFrame.new(belowCoin)
+	task.wait(0.1)
+
+	local atCoin = Vector3.new(coin.Position.X, coin.Position.Y, coin.Position.Z)
+	hrp.CFrame = CFrame.new(atCoin)
 	task.wait(0.15)
+	
 	coinsCollected = coinsCollected + 1
 	updateUI()
+
+	hrp.CFrame = CFrame.new(belowCoin)
+	task.wait(0.1)
 	return false
 end
 
@@ -210,30 +231,31 @@ end
 local function serverHop()
 	local PlaceId = game.PlaceId
 	local JobId = game.JobId
+
 	local servers = {}
 	local success, result = pcall(function()
 		local req = game:HttpGet("https://games.roblox.com/v1/games/" .. PlaceId .. "/servers/Public?sortOrder=Desc&limit=100&excludeFullGames=true")
 		return HttpService:JSONDecode(req)
 	end)
+
 	if success and result and result.data then
-		for _, v in next, result.data do
+		for i, v in next, result.data do
 			if type(v) == "table" and tonumber(v.playing) and tonumber(v.maxPlayers) and v.playing < v.maxPlayers and v.id ~= JobId then
 				table.insert(servers, 1, v.id)
 			end
 		end
 	end
+
 	if #servers > 0 then
 		TeleportService:TeleportToPlaceInstance(PlaceId, servers[math.random(1, #servers)], Players.LocalPlayer)
 	else
-		TeleportService:Teleport(PlaceId)
+		warn("Serverhop: Couldn't find a server.")
 	end
 end
 
-Players.LocalPlayer.OnTeleport:Connect(function(State)
-	if State == Enum.TeleportState.Failed then
-		serverHop()
-	end
-end)
+local function onPlayerRemoved()
+	serverHop()
+end
 
 local function startFarming()
 	while true do
@@ -241,9 +263,10 @@ local function startFarming()
 			serverHop()
 			task.wait(5)
 		end
+
 		if isInventoryFull() then
 			resetCharacter()
-			task.wait(2)
+			task.wait(2) 
 		else
 			local coin = getClosestCoin()
 			if coin then
@@ -251,9 +274,11 @@ local function startFarming()
 					task.wait(1)
 				end
 			else
-				hrp.CFrame = safeCFrame
-				bodyPos.Position = safePosition
-				task.wait(0.5)
+				if moveAndWait(safePosition) then
+					task.wait(1)
+				else
+					task.wait(0.5)
+				end
 			end
 		end
 		task.wait(0.1)
@@ -262,6 +287,7 @@ end
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
+
 	if input.KeyCode == Enum.KeyCode.PageUp then
 		verticalSpeed = math.min(verticalSpeed + 0.5, 10)
 		horizontalSpeed = math.min(horizontalSpeed + 0.5, 10)
@@ -280,6 +306,8 @@ lp.CharacterAdded:Connect(function(newChar)
 	setupCharacter()
 	task.wait(1)
 end)
+
+lp.PlayerRemoving:Connect(onPlayerRemoved)
 
 createUI()
 setupCharacter()
