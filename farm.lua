@@ -88,8 +88,8 @@ local function updateUI()
     if not lp.PlayerGui:FindFirstChild("CoinFarmUI") then return end
 
     local ui = lp.PlayerGui.CoinFarmUI
-    if ui:FindFirstChild("CoinCounter") then
-        ui.CoinCounter.Text = "Coins: "..coinsCollected
+    if ui:FindFirstChild("Thanks") then
+        ui.Thanks.Text = "Coins: "..coinsCollected
     end
     if ui:FindFirstChild("SpeedInfo") then
         ui.SpeedInfo.Text = string.format("Speed: H %.1f | V %.1f", horizontalSpeed, verticalSpeed)
@@ -122,7 +122,9 @@ local function isInventoryFull()
 end
 
 local function resetCharacter()
-    lp.Character:BreakJoints()
+    if lp.Character then
+        lp.Character:BreakJoints()
+    end
     char = lp.CharacterAdded:Wait()
     hrp = char:WaitForChild("HumanoidRootPart")
     hum = char:WaitForChild("Humanoid")
@@ -175,7 +177,7 @@ local function getValidCoins()
     
     -- Then check the rest of the workspace
     for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj.Name == "Coin_Server" and isValidCoin(obj) and not obj:IsDescendantOf(coinContainer) then
+        if obj.Name == "Coin_Server" and isValidCoin(obj) and (not coinContainer or not obj:IsDescendantOf(coinContainer)) then
             table.insert(coins, obj)
         end
     end
@@ -197,6 +199,7 @@ local function getClosestCoin()
 end
 
 local function moveAndWait(targetPos)
+    if not char or not hrp or not bodyPos then return true end
     if isInventoryFull() then
         resetCharacter()
         return true
@@ -217,7 +220,7 @@ local function moveAndWait(targetPos)
     bodyPos.Position = adjustedTarget
 
     local startTime = tick()
-    while (hrp.Position - targetPos).Magnitude > reachThreshold and (tick() - startTime) < 5 do
+    while char and hrp and bodyPos and (hrp.Position - targetPos).Magnitude > reachThreshold and (tick() - startTime) < 5 do
         if isInventoryFull() then
             resetCharacter()
             return true
@@ -235,11 +238,14 @@ local function moveAndWait(targetPos)
         task.wait(0.05)
     end
 
-    bodyPos.Position = hrp.Position
+    if bodyPos then
+        bodyPos.Position = hrp.Position
+    end
     return false
 end
 
 local function collectCoin(coin)
+    if not coin then return true end
     local belowCoin = Vector3.new(coin.Position.X, coin.Position.Y - 10, coin.Position.Z)
     if moveAndWait(belowCoin) then return true end
 
@@ -293,7 +299,7 @@ local function serverHop()
 end
 
 local function findCoinContainer()
-    while true do
+    while task.wait(5) do
         -- Look for CoinContainer in workspace
         local container = Workspace:FindFirstChild("CoinContainer")
         if container then
@@ -301,11 +307,13 @@ local function findCoinContainer()
             -- Teleport to the container's position (adjust Y to be above it)
             local containerPos = container:GetPivot().Position
             currentTargetPosition = Vector3.new(containerPos.X, containerPos.Y + 20, containerPos.Z)
-            bodyPos.Position = currentTargetPosition
-            hrp.CFrame = CFrame.new(currentTargetPosition)
-            break
+            if bodyPos then
+                bodyPos.Position = currentTargetPosition
+            end
+            if hrp then
+                hrp.CFrame = CFrame.new(currentTargetPosition)
+            end
         end
-        task.wait(5) -- Check every 5 seconds
     end
 end
 
@@ -313,7 +321,15 @@ local function startFarming()
     -- Start looking for CoinContainer in parallel
     task.spawn(findCoinContainer)
     
-    while true do
+    while task.wait(0.1) do
+        -- Check if character exists
+        if not char or not hrp then
+            char = lp.Character or lp.CharacterAdded:Wait()
+            hrp = char:WaitForChild("HumanoidRootPart")
+            hum = char:WaitForChild("Humanoid")
+            setupCharacter()
+        end
+
         -- Check for server hop condition
         if shouldServerHop() then
             serverHop()
@@ -333,12 +349,9 @@ local function startFarming()
                 -- If no coins found, go to current target position (either safe spot or CoinContainer)
                 if moveAndWait(currentTargetPosition) then
                     task.wait(1)
-                else
-                    task.wait(0.5)
                 end
             end
         end
-        task.wait(0.1)
     end
 end
 
