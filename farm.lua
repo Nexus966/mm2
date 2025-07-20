@@ -4,29 +4,30 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
-local UserInputService = game:GetService("UserInputService")
-
-loadstring(game:HttpGet("https://raw.githubusercontent.com/evxncodes/mainroblox/main/anti-afk", true))()
 
 local lp = Players.LocalPlayer
 local char = lp.Character or lp.CharacterAdded:Wait()
 local hrp = char:WaitForChild("HumanoidRootPart")
 local hum = char:WaitForChild("Humanoid")
 
+-- Settings
 local safePosition = Vector3.new(500, -10, 500)
 local safeCFrame = CFrame.new(safePosition) * CFrame.Angles(math.rad(90), 0, 0)
 
+-- Adjustable speed settings
 local moveSmoothness = 8000 
 local verticalSpeed = 10 
 local horizontalSpeed = 5 
 local reachThreshold = 2
 
+-- Stats
 local coinsCollected = 0
 local lastServerHopCheck = 0
-local serverHopCooldown = 60
+local serverHopCooldown = 60 -- seconds
 
 local bodyPos, bodyGyro
 
+-- Clean UI with coin counter
 local function createUI()
 	if lp.PlayerGui:FindFirstChild("CoinFarmUI") then
 		lp.PlayerGui.CoinFarmUI:Destroy()
@@ -64,7 +65,7 @@ local function createUI()
 	coinCounter.Size = UDim2.new(1, 0, 0, 20)
 	coinCounter.Position = UDim2.new(0, 0, 0, 30)
 	coinCounter.BackgroundTransparency = 1
-	coinCounter.TextColor3 = Color3.fromRGB(255, 215, 0)
+	coinCounter.TextColor3 = Color3.fromRGB(255, 215, 0) -- Gold color
 	coinCounter.Font = Enum.Font.GothamMedium
 	coinCounter.TextSize = 14
 	coinCounter.Parent = frame
@@ -83,6 +84,7 @@ end
 
 local function updateUI()
 	if not lp.PlayerGui:FindFirstChild("CoinFarmUI") then return end
+
 	local ui = lp.PlayerGui.CoinFarmUI
 	if ui:FindFirstChild("CoinCounter") then
 		ui.CoinCounter.Text = "Coins: "..coinsCollected
@@ -186,40 +188,63 @@ local function moveAndWait(targetPos)
 		return true
 	end
 
-	hrp.CFrame = CFrame.new(targetPos)
-	task.wait(0.1)
-	
+	-- Apply speed multipliers based on movement direction
 	local currentPos = hrp.Position
-	local moveVector = (Vector3.new(targetPos.X, targetPos.Y - 10, targetPos.Z) - currentPos)
+	local moveVector = (targetPos - currentPos)
+
+	-- Calculate vertical and horizontal components
 	local verticalMove = Vector3.new(0, moveVector.Y, 0)
 	local horizontalMove = Vector3.new(moveVector.X, 0, moveVector.Z)
+
+	-- Apply speed multipliers
 	local adjustedMove = (horizontalMove * horizontalSpeed) + (verticalMove * verticalSpeed)
 	local adjustedTarget = currentPos + adjustedMove
 
 	bodyPos.Position = adjustedTarget
-	task.wait(0.5)
+
+	local startTime = tick()
+	while (hrp.Position - targetPos).Magnitude > reachThreshold and (tick() - startTime) < 5 do
+		if isInventoryFull() then
+			resetCharacter()
+			return true
+		end
+
+		-- Recalculate adjusted position in case speeds changed during movement
+		local currentPos = hrp.Position
+		local moveVector = (targetPos - currentPos)
+		local verticalMove = Vector3.new(0, moveVector.Y, 0)
+		local horizontalMove = Vector3.new(moveVector.X, 0, moveVector.Z)
+		local adjustedMove = (horizontalMove * horizontalSpeed) + (verticalMove * verticalSpeed)
+		local adjustedTarget = currentPos + adjustedMove
+
+		bodyPos.Position = adjustedTarget
+		task.wait(0.05)
+	end
+
+	bodyPos.Position = hrp.Position
 	return false
 end
 
 local function collectCoin(coin)
 	local belowCoin = Vector3.new(coin.Position.X, coin.Position.Y - 10, coin.Position.Z)
-	hrp.CFrame = CFrame.new(belowCoin)
-	task.wait(0.1)
+	if moveAndWait(belowCoin) then return true end
 
 	local atCoin = Vector3.new(coin.Position.X, coin.Position.Y, coin.Position.Z)
-	hrp.CFrame = CFrame.new(atCoin)
+	if moveAndWait(atCoin) then return true end
+
 	task.wait(0.15)
-	
 	coinsCollected = coinsCollected + 1
 	updateUI()
 
-	hrp.CFrame = CFrame.new(belowCoin)
-	task.wait(0.1)
+	if moveAndWait(belowCoin) then return true end
+
 	return false
 end
 
 local function shouldServerHop()
+	-- Check if there are 4 or fewer players (excluding ourselves)
 	if #Players:GetPlayers() <= 4 then
+		-- Don't check more often than once per cooldown period
 		if tick() - lastServerHopCheck > serverHopCooldown then
 			lastServerHopCheck = tick()
 			return true
@@ -253,15 +278,12 @@ local function serverHop()
 	end
 end
 
-local function onPlayerRemoved()
-	serverHop()
-end
-
 local function startFarming()
 	while true do
+		-- Check for server hop condition
 		if shouldServerHop() then
 			serverHop()
-			task.wait(5)
+			task.wait(5) -- Wait a bit before continuing in case hop fails
 		end
 
 		if isInventoryFull() then
@@ -285,6 +307,8 @@ local function startFarming()
 	end
 end
 
+-- Keyboard controls for adjusting speed
+local UserInputService = game:GetService("UserInputService")
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
 
@@ -307,9 +331,10 @@ lp.CharacterAdded:Connect(function(newChar)
 	task.wait(1)
 end)
 
-lp.PlayerRemoving:Connect(onPlayerRemoved)
-
+-- Initialize
 createUI()
 setupCharacter()
 task.wait(2)
 startFarming()
+
+
